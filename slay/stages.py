@@ -234,9 +234,9 @@ def calc_ref_p(
             the refractory period penalty.
     """
     # define refractory penalty job
-    ref_p_job: Callable = functools.partial(
-        ref_p_func, times_multi=times_multi, params=params
-    )
+    # ref_p_job: Callable = functools.partial(
+    #     ref_p_func, times_multi=times_multi, params=params
+    # )
 
     # run refractory penalty job
     pool = mp.Pool(mp.cpu_count())  # type: ignore
@@ -246,26 +246,46 @@ def calc_ref_p(
             if (pass_ms[c1, c2]) and xcorr_sig[c1, c2] > 0:
                 args.append((c1, c2))
 
-    res = pool.starmap(ref_p_job, args)
+    # res = pool.starmap(ref_p_job, args)
+    # with mp.Pool(max(1, mp.cpu_count() - 1))as pool:
+    #     res = pool.starmap(ref_p_job, args)
 
-    # convert output to numpy arrays
+    # # convert output to numpy arrays
     ref_pen = np.zeros_like(pass_ms, dtype="float64")
     ref_base = np.zeros_like(pass_ms, dtype="float64")
     ref_obs = np.zeros_like(pass_ms, dtype="float64")
 
-    for i in range(len(res)):
-        c1 = args[i][0]
-        c2 = args[i][1]
+    # for i in range(len(res)):
+    #     c1 = args[i][0]
+    #     c2 = args[i][1]
+    #     # print(ref_pen.shape, c1, c2, res, len(res))
+    #     import ipdb; ipdb.set_trace()
+    #     ref_pen[c1, c2] = res[i][0]
+    #     ref_pen[c2, c1] = res[i][0]
 
-        ref_pen[c1, c2] = res[i][0]
-        ref_pen[c2, c1] = res[i][0]
+    #     ref_base[c1, c2] = res[i][1]
+    #     ref_base[c2, c1] = res[i][1]
 
-        ref_base[c1, c2] = res[i][1]
-        ref_base[c2, c1] = res[i][1]
+    #     ref_obs[c1, c2] = res[i][2]
+    #     ref_obs[c2, c1] = res[i][2]
 
-        ref_obs[c1, c2] = res[i][2]
-        ref_obs[c2, c1] = res[i][2]
+    # return ref_pen, ref_base, ref_obs
+    # Remove/comment out the earlier 'pool = mp.Pool(mp.cpu_count())' line above.
 
+    if args:
+        ref_p_job = functools.partial(ref_p_func, times_multi=times_multi, params=params)
+        with mp.Pool(max(1, mp.cpu_count()-1)) as pool:
+            results = pool.starmap(ref_p_job, args)
+
+        for (c1, c2), out in zip(args, results):
+            arr = np.atleast_1d(np.asarray(out))  # scalar -> array([scalar]), sequence -> array([...])
+            # first element is always taken as penalty
+            ref_pen[c1, c2] = ref_pen[c2, c1] = float(arr[0])
+            # optional values (may not exist)
+            if arr.size > 1:
+                ref_base[c1, c2] = ref_base[c2, c1] = float(arr[1])
+            if arr.size > 2:
+                ref_obs[c1, c2] = ref_obs[c2, c1] = float(arr[2])
     return ref_pen, ref_base, ref_obs
 
 
